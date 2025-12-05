@@ -1,14 +1,33 @@
 import { useState, useRef, Suspense, useMemo, useEffect } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Environment, useGLTF, PerspectiveCamera } from '@react-three/drei';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { OrbitControls, Environment, useGLTF, PerspectiveCamera, ContactShadows } from '@react-three/drei';
 import { ArrowLeft, Upload, X, RotateCcw, Grid, ZoomIn, ZoomOut } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import * as THREE from 'three';
 import { Navbar } from './Navbar';
 import { Cart } from './Cart';
 import { Login } from './Login';
-import { Register } from './Register';
 import { UserProfile } from './UserProfile';
+
+// Camera component that responds to zoom
+function ZoomableCamera({ zoom }: { zoom: number }) {
+  const { camera } = useThree();
+  
+  useFrame(() => {
+    if (camera instanceof THREE.PerspectiveCamera) {
+      // Convert percentage to zoom value (100% = 1.0, 200% = 2.0, 50% = 0.5)
+      const zoomValue = zoom / 100;
+      
+      // Only update if zoom actually changed to avoid unnecessary updates
+      if (Math.abs(camera.zoom - zoomValue) > 0.01) {
+        camera.zoom = zoomValue;
+        camera.updateProjectionMatrix();
+      }
+    }
+  });
+
+  return null;
+}
 
 // 3D T-shirt Model Component
 function ShirtModel({ 
@@ -62,69 +81,61 @@ function ShirtModel({
     ctx.fillStyle = color;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    // Helper to draw a set of designs into a specific region of the texture
+    const drawDesignsInRegion = async (
+      view: keyof typeof designs,
+      region: { x: number; y: number; w: number; h: number }
+    ) => {
+      for (const design of designs[view]) {
+        const imgUrl = getImageUrl(design.imageId);
+        if (!imgUrl) continue;
+
+        try {
+          const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+            const image = new Image();
+            image.crossOrigin = 'anonymous';
+            image.onload = () => resolve(image);
+            image.onerror = reject;
+            image.src = imgUrl;
+          });
+
+          const x = region.x + (design.x / 100) * region.w;
+          const y = region.y + (design.y / 100) * region.h;
+          const width = (design.width / 100) * region.w;
+          const height = (design.height / 100) * region.h;
+
+          ctx.save();
+          ctx.translate(x + width / 2, y + height / 2);
+          ctx.rotate((design.rotation * Math.PI) / 180);
+          ctx.drawImage(img, -width / 2, -height / 2, width, height);
+          ctx.restore();
+        } catch (err) {
+          console.error('Error loading image:', err);
+        }
+      }
+    };
+
     // Load and draw all images
     const loadAndDrawImages = async () => {
       // Clear and redraw base color
       ctx.fillStyle = color;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Draw front designs (top half of texture)
-      for (const design of designs.front) {
-        const imgUrl = getImageUrl(design.imageId);
-        if (!imgUrl) continue;
+      // Define texture atlas regions (2x2 grid):
+      // Top-left: front, Top-right: back, Bottom-left: left sleeve, Bottom-right: right sleeve
+      const halfW = canvas.width / 2;
+      const halfH = canvas.height / 2;
+      const regions = {
+        front: { x: 0, y: 0, w: halfW, h: halfH },
+        back: { x: halfW, y: 0, w: halfW, h: halfH },
+        leftSleeve: { x: 0, y: halfH, w: halfW, h: halfH },
+        rightSleeve: { x: halfW, y: halfH, w: halfW, h: halfH },
+      } as const;
 
-        try {
-          const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-            const image = new Image();
-            image.crossOrigin = 'anonymous';
-            image.onload = () => resolve(image);
-            image.onerror = reject;
-            image.src = imgUrl;
-          });
-
-          const x = (design.x / 100) * canvas.width;
-          const y = (design.y / 100) * (canvas.height / 2); // Front is top half
-          const width = (design.width / 100) * canvas.width;
-          const height = (design.height / 100) * (canvas.height / 2);
-
-          ctx.save();
-          ctx.translate(x + width / 2, y + height / 2);
-          ctx.rotate((design.rotation * Math.PI) / 180);
-          ctx.drawImage(img, -width / 2, -height / 2, width, height);
-          ctx.restore();
-        } catch (err) {
-          console.error('Error loading image:', err);
-        }
-      }
-
-      // Draw back designs (bottom half of texture)
-      for (const design of designs.back) {
-        const imgUrl = getImageUrl(design.imageId);
-        if (!imgUrl) continue;
-
-        try {
-          const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-            const image = new Image();
-            image.crossOrigin = 'anonymous';
-            image.onload = () => resolve(image);
-            image.onerror = reject;
-            image.src = imgUrl;
-          });
-
-          const x = (design.x / 100) * canvas.width;
-          const y = (canvas.height / 2) + (design.y / 100) * (canvas.height / 2); // Back is bottom half
-          const width = (design.width / 100) * canvas.width;
-          const height = (design.height / 100) * (canvas.height / 2);
-
-          ctx.save();
-          ctx.translate(x + width / 2, y + height / 2);
-          ctx.rotate((design.rotation * Math.PI) / 180);
-          ctx.drawImage(img, -width / 2, -height / 2, width, height);
-          ctx.restore();
-        } catch (err) {
-          console.error('Error loading image:', err);
-        }
-      }
+      await drawDesignsInRegion('front', regions.front);
+      await drawDesignsInRegion('back', regions.back);
+      await drawDesignsInRegion('leftSleeve', regions.leftSleeve);
+      await drawDesignsInRegion('rightSleeve', regions.rightSleeve);
 
       // Update texture
       if (textureRef.current) {
@@ -161,9 +172,13 @@ function ShirtModel({
     if (materialsRef.current.length > 0) {
       const colorObj = new THREE.Color(color);
       materialsRef.current.forEach((material) => {
-        material.color.copy(colorObj);
         if (textureRef.current) {
+          // Keep map colors accurate; avoid tinting by forcing white
+          material.color.set('#ffffff');
           material.map = textureRef.current;
+        } else {
+          material.color.copy(colorObj);
+          material.map = null;
         }
         material.needsUpdate = true;
       });
@@ -185,16 +200,18 @@ function ShirtModel({
 export const Customize = () => {
   const [uploadedImages, setUploadedImages] = useState<Array<{ id: string; url: string; name: string }>>([]);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [shirtColor, setShirtColor] = useState('#000000');
+  const [selectedDesign, setSelectedDesign] = useState<{ view: typeof activeView; id: string } | null>(null);
+  const [shirtColor, setShirtColor] = useState('#FFFFFF');
   const [designs, setDesigns] = useState<Record<string, Array<{ id: string; imageId: string; x: number; y: number; width: number; height: number; rotation: number }>>>({
     front: [],
     back: [],
     leftSleeve: [],
     rightSleeve: [],
   });
-  const [activeView, setActiveView] = useState<'front' | 'back' | 'leftSleeve' | 'rightSleeve'>('front');
-  const [zoom, setZoom] = useState(100);
+  const [activeView] = useState<'front' | 'back' | 'leftSleeve' | 'rightSleeve'>('front');
+  const [zoom, setZoom] = useState(450);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -202,11 +219,10 @@ export const Customize = () => {
   const [resizeStart, setResizeStart] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const [draggingDesign, setDraggingDesign] = useState<{ view: typeof activeView; id: string } | null>(null);
   const [dragStart, setDragStart] = useState<{ x: number; y: number; designX: number; designY: number; containerWidth: number; containerHeight: number } | null>(null);
+  const [rotatingDesign, setRotatingDesign] = useState<{ view: typeof activeView; id: string } | null>(null);
+  const [rotateStart, setRotateStart] = useState<{ x: number; angle: number } | null>(null);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-
+  const processFiles = (files: FileList) => {
     Array.from(files).forEach((file) => {
       if (file.type === 'image/png' || file.type === 'image/jpeg') {
         if (file.size > 10 * 1024 * 1024) {
@@ -229,23 +245,38 @@ export const Customize = () => {
     });
   };
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    processFiles(files);
+  };
+
+  const handleDragOverUpload = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingFiles(true);
+  };
+
+  const handleDragLeaveUpload = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingFiles(false);
+  };
+
+  const handleDropUpload = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingFiles(false);
+    if (e.dataTransfer?.files?.length) {
+      processFiles(e.dataTransfer.files);
+    }
+  };
+
   const handleImageClick = (imageId: string) => {
     setSelectedImage(imageId);
   };
 
-  const handleTemplateClick = (e: React.MouseEvent<HTMLDivElement>, view: typeof activeView) => {
-    if (!selectedImage) {
-      alert('Please select an image first by clicking on it in the left sidebar');
-      return;
-    }
-
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-
+  const addDesignAt = (view: typeof activeView, imageId: string, x: number, y: number) => {
     const newDesign = {
       id: Date.now().toString(),
-      imageId: selectedImage,
+      imageId,
       x: Math.max(0, Math.min(100, x - 10)),
       y: Math.max(0, Math.min(100, y - 10)),
       width: 20,
@@ -257,6 +288,26 @@ export const Customize = () => {
       ...prev,
       [view]: [...prev[view], newDesign],
     }));
+    setSelectedDesign({ view, id: newDesign.id });
+  };
+
+  const handleTemplateDrop = (e: React.DragEvent<HTMLDivElement>, view: typeof activeView) => {
+    e.preventDefault();
+    const imageId = e.dataTransfer.getData('image-id');
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+    if (imageId) {
+      addDesignAt(view, imageId, x, y);
+      setSelectedImage(imageId);
+      return;
+    }
+
+    // If files are dropped directly on the template, upload them
+    if (e.dataTransfer.files?.length) {
+      processFiles(e.dataTransfer.files);
+    }
   };
 
   const removeDesign = (view: typeof activeView, designId: string) => {
@@ -264,6 +315,9 @@ export const Customize = () => {
       ...prev,
       [view]: prev[view].filter((d) => d.id !== designId),
     }));
+    if (selectedDesign && selectedDesign.id === designId && selectedDesign.view === view) {
+      setSelectedDesign(null);
+    }
   };
 
   const removeImage = (imageId: string) => {
@@ -338,6 +392,8 @@ export const Customize = () => {
     const design = designs[view].find((d) => d.id === designId);
     if (!design) return;
 
+    setSelectedDesign({ view, id: designId });
+
     const templateContainer = (e.currentTarget as HTMLElement).closest('.template-container');
     if (!templateContainer) return;
 
@@ -376,6 +432,42 @@ export const Customize = () => {
     setDragStart(null);
   };
 
+  const updateSelectedDesign = (updates: Partial<{ rotation: number }>) => {
+    if (!selectedDesign) return;
+    setDesigns((prev) => ({
+      ...prev,
+      [selectedDesign.view]: prev[selectedDesign.view].map((d) =>
+        d.id === selectedDesign.id ? { ...d, ...updates } : d
+      ),
+    }));
+  };
+
+  const handleRotateStart = (e: React.MouseEvent, view: typeof activeView, designId: string) => {
+    e.stopPropagation();
+    const design = designs[view].find((d) => d.id === designId);
+    if (!design) return;
+    setSelectedDesign({ view, id: designId });
+    setRotatingDesign({ view, id: designId });
+    setRotateStart({ x: e.clientX, angle: design.rotation });
+  };
+
+  const handleRotateMove = (e: MouseEvent) => {
+    if (!rotatingDesign || !rotateStart) return;
+    const delta = (e.clientX - rotateStart.x) * 0.5; // degrees per pixel factor
+    const newAngle = ((rotateStart.angle + delta) % 360 + 360) % 360;
+    setDesigns((prev) => ({
+      ...prev,
+      [rotatingDesign.view]: prev[rotatingDesign.view].map((d) =>
+        d.id === rotatingDesign.id ? { ...d, rotation: newAngle } : d
+      ),
+    }));
+  };
+
+  const handleRotateEnd = () => {
+    setRotatingDesign(null);
+    setRotateStart(null);
+  };
+
   // Add global mouse event listeners for resizing
   useEffect(() => {
     if (resizingDesign && resizeStart) {
@@ -406,6 +498,21 @@ export const Customize = () => {
     }
   }, [draggingDesign, dragStart]);
 
+  // Add global mouse event listeners for rotating
+  useEffect(() => {
+    if (rotatingDesign && rotateStart) {
+      const handleMove = (e: MouseEvent) => handleRotateMove(e);
+      const handleEnd = () => handleRotateEnd();
+      
+      window.addEventListener('mousemove', handleMove);
+      window.addEventListener('mouseup', handleEnd);
+      return () => {
+        window.removeEventListener('mousemove', handleMove);
+        window.removeEventListener('mouseup', handleEnd);
+      };
+    }
+  }, [rotatingDesign, rotateStart]);
+
   return (
     <div className="min-h-screen bg-black text-white">
       <Navbar
@@ -428,22 +535,34 @@ export const Customize = () => {
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full py-4 px-6 bg-pink-600 hover:bg-pink-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center"
+            <div
+              onDragOver={handleDragOverUpload}
+              onDragEnter={handleDragOverUpload}
+              onDragLeave={handleDragLeaveUpload}
+              onDrop={handleDropUpload}
+              className={`w-full rounded-lg border-2 border-dashed transition-colors ${
+                isDraggingFiles ? 'border-pink-500 bg-pink-500/10' : 'border-gray-700 bg-gray-900/60'
+              }`}
             >
-              <Upload className="w-5 h-5 mr-2" />
-              Add Images ↑
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/png,image/jpeg"
-              multiple
-              onChange={handleImageUpload}
-              className="hidden"
-            />
-            <p className="text-xs text-gray-400 text-center">PNG or JPG (max. 10MB)</p>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full py-4 px-6 bg-pink-600 hover:bg-pink-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center"
+              >
+                <Upload className="w-5 h-5 mr-2" />
+                Add Images ↑
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg"
+                multiple
+                onChange={handleImageUpload}
+                className="hidden"
+              />
+              <p className="text-xs text-gray-400 text-center py-3">
+                Drag & drop PNG or JPG (max. 10MB) here, or click to upload
+              </p>
+            </div>
 
             {selectedImage && (
               <div className="mt-4 p-3 bg-pink-500/20 border border-pink-500 rounded-lg">
@@ -457,10 +576,15 @@ export const Customize = () => {
               {uploadedImages.length === 0 ? (
                 <p className="text-sm text-gray-500 text-center py-8">No images uploaded yet</p>
               ) : (
-                uploadedImages.map((image) => (
+                 uploadedImages.map((image) => (
                   <div
                     key={image.id}
-                    className={`relative group cursor-pointer border-2 rounded-lg overflow-hidden transition-all ${
+                     draggable
+                     onDragStart={(e) => {
+                       e.dataTransfer.setData('image-id', image.id);
+                       e.dataTransfer.effectAllowed = 'copy';
+                     }}
+                     className={`relative group cursor-pointer border-2 rounded-lg overflow-hidden transition-all ${
                       selectedImage === image.id 
                         ? 'border-pink-500 ring-2 ring-pink-500/50 scale-105' 
                         : 'border-gray-700 hover:border-gray-600'
@@ -496,21 +620,15 @@ export const Customize = () => {
             <div className="grid grid-cols-2 gap-6">
               {/* Front View */}
               <div className="relative">
-                <div
+              <div
                   className="relative bg-gray-800 rounded-lg overflow-hidden border-2 border-gray-700 template-container"
                   style={{ aspectRatio: '3/4' }}
-                  onClick={(e) => {
-                    // Don't place new image if dragging an existing one
-                    if (!draggingDesign) {
-                      handleTemplateClick(e, 'front');
-                    }
-                  }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => handleTemplateDrop(e, 'front')}
                 >
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
                     <div className="text-gray-600 text-sm">FRONT</div>
-                    {!selectedImage && (
-                      <div className="absolute bottom-4 text-xs text-gray-500">Select an image, then click here</div>
-                    )}
+                     <div className="absolute bottom-4 text-xs text-gray-500">Drag an image here to place</div>
                   </div>
                   {/* Grid Overlay */}
                   <div className="absolute inset-0 opacity-20 pointer-events-none z-0" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
@@ -521,7 +639,7 @@ export const Customize = () => {
                     return (
                       <div
                         key={design.id}
-                        className="absolute border-2 border-white z-10 group cursor-move"
+                         className={`absolute z-10 group cursor-move ${selectedDesign?.id === design.id && selectedDesign.view === 'front' ? 'border-2 border-pink-500' : 'border-2 border-white'}`}
                         style={{
                           left: `${design.x}%`,
                           top: `${design.y}%`,
@@ -531,6 +649,10 @@ export const Customize = () => {
                           cursor: draggingDesign?.id === design.id ? 'grabbing' : 'grab',
                         }}
                         onMouseDown={(e) => handleDragStart(e, 'front', design.id)}
+                         onClick={(e) => {
+                           e.stopPropagation();
+                           setSelectedDesign({ view: 'front', id: design.id });
+                         }}
                       >
                         <img src={imageUrl} alt="Design" className="w-full h-full object-contain bg-white/10 pointer-events-none" />
                         <button
@@ -541,6 +663,13 @@ export const Customize = () => {
                           className="absolute -top-2 -right-2 w-5 h-5 bg-red-600 rounded-full flex items-center justify-center z-20 pointer-events-auto"
                         >
                           <X className="w-3 h-3" />
+                        </button>
+                        <button
+                          onMouseDown={(e) => handleRotateStart(e, 'front', design.id)}
+                          className="absolute -bottom-2 -left-2 w-6 h-6 bg-black/70 rounded-full flex items-center justify-center z-20 pointer-events-auto border border-pink-500 hover:bg-pink-500/20 transition-colors cursor-grab active:cursor-grabbing"
+                          title="Drag to rotate"
+                        >
+                          <RotateCcw className="w-3 h-3" />
                         </button>
                         {/* Resize handle */}
                         <div
@@ -556,20 +685,15 @@ export const Customize = () => {
 
               {/* Back View */}
               <div className="relative">
-                <div
+              <div
                   className="relative bg-gray-800 rounded-lg overflow-hidden border-2 border-gray-700 template-container"
                   style={{ aspectRatio: '3/4' }}
-                  onClick={(e) => {
-                    if (!draggingDesign) {
-                      handleTemplateClick(e, 'back');
-                    }
-                  }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => handleTemplateDrop(e, 'back')}
                 >
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
                     <div className="text-gray-600 text-sm">BACK</div>
-                    {!selectedImage && (
-                      <div className="absolute bottom-4 text-xs text-gray-500">Select an image, then click here</div>
-                    )}
+                     <div className="absolute bottom-4 text-xs text-gray-500">Drag an image here to place</div>
                   </div>
                   {/* Grid Overlay */}
                   <div className="absolute inset-0 opacity-20 pointer-events-none z-0" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
@@ -580,7 +704,7 @@ export const Customize = () => {
                     return (
                       <div
                         key={design.id}
-                        className="absolute border-2 border-white z-10 group cursor-move"
+                         className={`absolute z-10 group cursor-move ${selectedDesign?.id === design.id && selectedDesign.view === 'back' ? 'border-2 border-pink-500' : 'border-2 border-white'}`}
                         style={{
                           left: `${design.x}%`,
                           top: `${design.y}%`,
@@ -590,6 +714,10 @@ export const Customize = () => {
                           cursor: draggingDesign?.id === design.id ? 'grabbing' : 'grab',
                         }}
                         onMouseDown={(e) => handleDragStart(e, 'back', design.id)}
+                         onClick={(e) => {
+                           e.stopPropagation();
+                           setSelectedDesign({ view: 'back', id: design.id });
+                         }}
                       >
                         <img src={imageUrl} alt="Design" className="w-full h-full object-contain bg-white/10 pointer-events-none" />
                         <button
@@ -600,6 +728,13 @@ export const Customize = () => {
                           className="absolute -top-2 -right-2 w-5 h-5 bg-red-600 rounded-full flex items-center justify-center z-20 pointer-events-auto"
                         >
                           <X className="w-3 h-3" />
+                        </button>
+                        <button
+                          onMouseDown={(e) => handleRotateStart(e, 'back', design.id)}
+                          className="absolute -bottom-2 -left-2 w-6 h-6 bg-black/70 rounded-full flex items-center justify-center z-20 pointer-events-auto border border-pink-500 hover:bg-pink-500/20 transition-colors cursor-grab active:cursor-grabbing"
+                          title="Drag to rotate"
+                        >
+                          <RotateCcw className="w-3 h-3" />
                         </button>
                         {/* Resize handle */}
                         <div
@@ -619,17 +754,12 @@ export const Customize = () => {
               <div
                 className="relative bg-gray-800 rounded-lg overflow-hidden border-2 border-gray-700 template-container"
                 style={{ aspectRatio: '2/3', height: '200px' }}
-                onClick={(e) => {
-                  if (!draggingDesign) {
-                    handleTemplateClick(e, 'leftSleeve');
-                  }
-                }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => handleTemplateDrop(e, 'leftSleeve')}
               >
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
                   <div className="text-gray-600 text-sm">LEFT SLEEVE</div>
-                  {!selectedImage && (
-                    <div className="absolute bottom-2 text-xs text-gray-500">Select an image, then click here</div>
-                  )}
+                   <div className="absolute bottom-2 text-xs text-gray-500">Drag an image here to place</div>
                 </div>
                 {designs.leftSleeve.map((design) => {
                   const imageUrl = getImageUrl(design.imageId);
@@ -637,7 +767,7 @@ export const Customize = () => {
                   return (
                     <div
                       key={design.id}
-                      className="absolute border-2 border-white z-10 group cursor-move"
+                       className={`absolute z-10 group cursor-move ${selectedDesign?.id === design.id && selectedDesign.view === 'leftSleeve' ? 'border-2 border-pink-500' : 'border-2 border-white'}`}
                       style={{
                         left: `${design.x}%`,
                         top: `${design.y}%`,
@@ -646,7 +776,11 @@ export const Customize = () => {
                         transform: `rotate(${design.rotation}deg)`,
                         cursor: draggingDesign?.id === design.id ? 'grabbing' : 'grab',
                       }}
-                      onMouseDown={(e) => handleDragStart(e, 'leftSleeve', design.id)}
+                       onMouseDown={(e) => handleDragStart(e, 'leftSleeve', design.id)}
+                       onClick={(e) => {
+                         e.stopPropagation();
+                         setSelectedDesign({ view: 'leftSleeve', id: design.id });
+                       }}
                     >
                       <img src={imageUrl} alt="Design" className="w-full h-full object-contain bg-white/10 pointer-events-none" />
                       <button
@@ -657,6 +791,13 @@ export const Customize = () => {
                         className="absolute -top-2 -right-2 w-5 h-5 bg-red-600 rounded-full flex items-center justify-center z-20 pointer-events-auto"
                       >
                         <X className="w-3 h-3" />
+                      </button>
+                      <button
+                        onMouseDown={(e) => handleRotateStart(e, 'leftSleeve', design.id)}
+                        className="absolute -bottom-2 -left-2 w-6 h-6 bg-black/70 rounded-full flex items-center justify-center z-20 pointer-events-auto border border-pink-500 hover:bg-pink-500/20 transition-colors cursor-grab active:cursor-grabbing"
+                        title="Drag to rotate"
+                      >
+                        <RotateCcw className="w-3 h-3" />
                       </button>
                       {/* Resize handle */}
                       <div
@@ -672,17 +813,12 @@ export const Customize = () => {
               <div
                 className="relative bg-gray-800 rounded-lg overflow-hidden border-2 border-gray-700 template-container"
                 style={{ aspectRatio: '2/3', height: '200px' }}
-                onClick={(e) => {
-                  if (!draggingDesign) {
-                    handleTemplateClick(e, 'rightSleeve');
-                  }
-                }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => handleTemplateDrop(e, 'rightSleeve')}
               >
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
                   <div className="text-gray-600 text-sm">RIGHT SLEEVE</div>
-                  {!selectedImage && (
-                    <div className="absolute bottom-2 text-xs text-gray-500">Select an image, then click here</div>
-                  )}
+                   <div className="absolute bottom-2 text-xs text-gray-500">Drag an image here to place</div>
                 </div>
                 {designs.rightSleeve.map((design) => {
                   const imageUrl = getImageUrl(design.imageId);
@@ -690,7 +826,7 @@ export const Customize = () => {
                   return (
                     <div
                       key={design.id}
-                      className="absolute border-2 border-white z-10 group cursor-move"
+                       className={`absolute z-10 group cursor-move ${selectedDesign?.id === design.id && selectedDesign.view === 'rightSleeve' ? 'border-2 border-pink-500' : 'border-2 border-white'}`}
                       style={{
                         left: `${design.x}%`,
                         top: `${design.y}%`,
@@ -699,7 +835,11 @@ export const Customize = () => {
                         transform: `rotate(${design.rotation}deg)`,
                         cursor: draggingDesign?.id === design.id ? 'grabbing' : 'grab',
                       }}
-                      onMouseDown={(e) => handleDragStart(e, 'rightSleeve', design.id)}
+                       onMouseDown={(e) => handleDragStart(e, 'rightSleeve', design.id)}
+                       onClick={(e) => {
+                         e.stopPropagation();
+                         setSelectedDesign({ view: 'rightSleeve', id: design.id });
+                       }}
                     >
                       <img src={imageUrl} alt="Design" className="w-full h-full object-contain bg-white/10 pointer-events-none" />
                       <button
@@ -710,6 +850,13 @@ export const Customize = () => {
                         className="absolute -top-2 -right-2 w-5 h-5 bg-red-600 rounded-full flex items-center justify-center z-20 pointer-events-auto"
                       >
                         <X className="w-3 h-3" />
+                      </button>
+                      <button
+                        onMouseDown={(e) => handleRotateStart(e, 'rightSleeve', design.id)}
+                        className="absolute -bottom-2 -left-2 w-6 h-6 bg-black/70 rounded-full flex items-center justify-center z-20 pointer-events-auto border border-pink-500 hover:bg-pink-500/20 transition-colors cursor-grab active:cursor-grabbing"
+                        title="Drag to rotate"
+                      >
+                        <RotateCcw className="w-3 h-3" />
                       </button>
                       {/* Resize handle */}
                       <div
@@ -722,22 +869,67 @@ export const Customize = () => {
                 })}
               </div>
             </div>
+
+            {/* Rotation controls for selected design */}
+            <div className="bg-gray-900/60 border border-gray-800 rounded-lg p-4">
+              {selectedDesign ? (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        const current = designs[selectedDesign.view].find((d) => d.id === selectedDesign.id);
+                        const next = ((current?.rotation ?? 0) + 15) % 360;
+                        updateSelectedDesign({ rotation: next });
+                      }}
+                      className="p-2 rounded-full border border-pink-500 text-white hover:bg-pink-500/20 transition-colors"
+                      title="Rotate +15°"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => updateSelectedDesign({ rotation: 0 })}
+                      className="px-3 py-1 text-xs bg-gray-800 hover:bg-gray-700 rounded text-white border border-gray-700"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                  <span className="text-xs text-gray-400">
+                    {(() => {
+                      const d = designs[selectedDesign.view].find((x) => x.id === selectedDesign.id);
+                      return d ? `${Math.round(d.rotation)}°` : '';
+                    })()}
+                  </span>
+                </div>
+              ) : (
+                <div className="text-sm text-gray-400">
+                  Select a placed design to rotate it.
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Right Sidebar - 3D Preview and Color */}
+         {/* Right Sidebar - 3D Preview and Color */}
         <div className="w-96 bg-gray-900 border-l border-gray-800 flex flex-col">
           <div className="flex-1 p-4">
             {/* 3D Preview */}
-            <div className="relative bg-gray-950 rounded-lg overflow-hidden mb-6" style={{ height: '400px' }}>
-              <Canvas>
+            <div className="relative rounded-lg overflow-hidden mb-6" style={{ height: '400px', background: 'radial-gradient(circle at center, #374151 0%, #111827 100%)' }}>
+              <Canvas shadows>
                 <Suspense fallback={null}>
                   <PerspectiveCamera makeDefault position={[0, 0, 5]} />
-                  <ambientLight intensity={0.5} />
-                  <directionalLight position={[10, 10, 5]} intensity={1} />
+                  <ZoomableCamera zoom={zoom} />
+                  <ambientLight intensity={0.7} />
+                  <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} intensity={1} castShadow />
                   <Environment preset="city" />
                   <ShirtModel color={shirtColor} designs={designs} uploadedImages={uploadedImages} />
-                  <OrbitControls enableZoom={true} enablePan={false} enableRotate={true} />
+                  <ContactShadows position={[0, -2.5, 0]} opacity={0.4} scale={10} blur={2.5} far={4} color="#000000" />
+                  <OrbitControls 
+                    enableZoom={false} 
+                    enablePan={false} 
+                    enableRotate={true}
+                    minDistance={2}
+                    maxDistance={10}
+                  />
                 </Suspense>
               </Canvas>
               
@@ -756,7 +948,7 @@ export const Customize = () => {
                   <ZoomOut className="w-4 h-4" />
                 </button>
                 <span className="text-white text-xs">{zoom}%</span>
-                <button onClick={() => setZoom(Math.min(200, zoom + 10))} className="text-white">
+                <button onClick={() => setZoom(Math.min(300, zoom + 10))} className="text-white">
                   <ZoomIn className="w-4 h-4" />
                 </button>
               </div>
@@ -806,21 +998,22 @@ export const Customize = () => {
           </div>
         </div>
       </div>
-      <Cart
-        isOpen={isCartOpen}
-        onClose={() => setIsCartOpen(false)}
-        onCheckout={() => {}}
-      />
-      <Login
-        isOpen={isLoginOpen}
-        onClose={() => setIsLoginOpen(false)}
-        onSwitchToRegister={() => {}}
-      />
-      <UserProfile
-        isOpen={isProfileOpen}
-        onClose={() => setIsProfileOpen(false)}
-      />
-    </div>
-  );
-};
+
+       <Cart
+         isOpen={isCartOpen}
+         onClose={() => setIsCartOpen(false)}
+         onCheckout={() => {}}
+       />
+       <Login
+         isOpen={isLoginOpen}
+         onClose={() => setIsLoginOpen(false)}
+         onSwitchToRegister={() => {}}
+       />
+       <UserProfile
+         isOpen={isProfileOpen}
+         onClose={() => setIsProfileOpen(false)}
+       />
+     </div>
+   );
+ };
 
