@@ -10,6 +10,13 @@ export interface Product {
   stock: number;
   featured: boolean;
   created_at: string;
+  flashDeal?: {
+    id: string;
+    discount_percentage: number;
+    start_time: string;
+    end_time: string;
+    is_active: boolean;
+  };
 }
 
 export interface CartItem {

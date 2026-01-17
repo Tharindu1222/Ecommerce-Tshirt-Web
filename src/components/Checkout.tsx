@@ -35,7 +35,11 @@ export const Checkout = ({ isOpen, onClose }: CheckoutProps) => {
 
   const total = cartItems.reduce((sum, item) => {
     const price = item.product?.price || 0;
-    return sum + price * item.quantity;
+    const flashDeal = item.product?.flashDeal;
+    const finalPrice = flashDeal 
+      ? price * (1 - flashDeal.discount_percentage / 100)
+      : price;
+    return sum + finalPrice * item.quantity;
   }, 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -43,13 +47,21 @@ export const Checkout = ({ isOpen, onClose }: CheckoutProps) => {
     setIsProcessing(true);
 
     try {
-      const orderItems = cartItems.map(item => ({
-        product_id: item.product_id,
-        quantity: item.quantity,
-        size: item.size,
-        color: item.color,
-        price: item.product?.price || 0
-      }));
+      const orderItems = cartItems.map(item => {
+        const price = item.product?.price || 0;
+        const flashDeal = item.product?.flashDeal;
+        const finalPrice = flashDeal 
+          ? price * (1 - flashDeal.discount_percentage / 100)
+          : price;
+        
+        return {
+          product_id: item.product_id,
+          quantity: item.quantity,
+          size: item.size,
+          color: item.color,
+          price: finalPrice
+        };
+      });
 
       if (paymentMethod === 'cod') {
         // Cash on Delivery - Create order directly
@@ -163,19 +175,32 @@ export const Checkout = ({ isOpen, onClose }: CheckoutProps) => {
           <div>
             <h3 className="text-lg font-semibold text-white mb-4">Order Summary</h3>
             <div className="space-y-3">
-              {cartItems.map((item) => (
-                <div key={item.id} className="flex justify-between text-sm">
-                  <span className="text-gray-400">
-                    {item.product?.name} ({item.size}, {item.color}) x{item.quantity}
-                  </span>
-                  <span className="font-medium text-white">
-                    ${((item.product?.price || 0) * item.quantity).toFixed(2)}
-                  </span>
-                </div>
-              ))}
+              {cartItems.map((item) => {
+                const price = item.product?.price || 0;
+                const flashDeal = item.product?.flashDeal;
+                const finalPrice = flashDeal 
+                  ? price * (1 - flashDeal.discount_percentage / 100)
+                  : price;
+                
+                return (
+                  <div key={item.id} className="flex justify-between text-sm">
+                    <span className="text-gray-400">
+                      {item.product?.name} ({item.size}, {item.color}) x{item.quantity}
+                      {flashDeal && (
+                        <span className="ml-2 text-xs bg-orange-500 text-white px-2 py-0.5 rounded font-bold">
+                          -{flashDeal.discount_percentage}% OFF
+                        </span>
+                      )}
+                    </span>
+                    <span className="font-medium text-white">
+                      Rs. {(finalPrice * item.quantity).toFixed(2)}
+                    </span>
+                  </div>
+                );
+              })}
               <div className="border-t border-gray-800 pt-3 flex justify-between font-bold text-lg text-white">
                 <span>Total</span>
-                <span>${total.toFixed(2)}</span>
+                <span>Rs. {total.toFixed(2)}</span>
               </div>
             </div>
           </div>

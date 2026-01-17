@@ -192,7 +192,11 @@ router.get('/:id', authenticateToken, requireAdmin, async (req, res) => {
 
 // Update order status
 router.put('/:id/status', authenticateToken, requireAdmin, async (req, res) => {
+  const connection = await promisePool.getConnection();
+  
   try {
+    await connection.beginTransaction();
+    
     const { id } = req.params;
     const { status } = req.body;
 
@@ -201,13 +205,72 @@ router.put('/:id/status', authenticateToken, requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Invalid status' });
     }
 
-    await promisePool.query(
+    // Get current order status
+    const [currentOrder] = await connection.query(
+      'SELECT status FROM orders WHERE id = ?',
+      [id]
+    );
+
+    if (currentOrder.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    const previousStatus = currentOrder[0].status;
+
+    // If changing TO cancelled, restore stock
+    if (status === 'cancelled' && previousStatus !== 'cancelled') {
+      const [orderItems] = await connection.query(
+        'SELECT product_id, quantity FROM order_items WHERE order_id = ?',
+        [id]
+      );
+
+      // Restore stock for each item
+      for (const item of orderItems) {
+        await connection.query(
+          'UPDATE products SET stock = stock + ? WHERE id = ?',
+          [item.quantity, item.product_id]
+        );
+      }
+    }
+
+    // If changing FROM cancelled to any other status, reduce stock again
+    if (previousStatus === 'cancelled' && status !== 'cancelled') {
+      const [orderItems] = await connection.query(
+        'SELECT product_id, quantity FROM order_items WHERE order_id = ?',
+        [id]
+      );
+
+      // Check stock availability and reduce stock
+      for (const item of orderItems) {
+        const [products] = await connection.query(
+          'SELECT stock FROM products WHERE id = ?',
+          [item.product_id]
+        );
+
+        if (products.length === 0 || products[0].stock < item.quantity) {
+          await connection.rollback();
+          return res.status(400).json({ 
+            error: `Insufficient stock to reactivate order. Product needs ${item.quantity} items.` 
+          });
+        }
+
+        await connection.query(
+          'UPDATE products SET stock = stock - ? WHERE id = ?',
+          [item.quantity, item.product_id]
+        );
+      }
+    }
+
+    await connection.query(
       'UPDATE orders SET status = ? WHERE id = ?',
       [status, id]
     );
 
+    await connection.commit();
+
     // Get updated order
-    const [orders] = await promisePool.query(
+    const [orders] = await connection.query(
       `SELECT o.*, 
               u.first_name, u.last_name, u.phone
        FROM orders o
@@ -219,7 +282,7 @@ router.put('/:id/status', authenticateToken, requireAdmin, async (req, res) => {
     const order = orders[0];
 
     // Get order items
-    const [items] = await promisePool.query(
+    const [items] = await connection.query(
       `SELECT oi.*, p.name as product_name, p.image_url as product_image
        FROM order_items oi
        LEFT JOIN products p ON oi.product_id = p.id
@@ -235,8 +298,11 @@ router.put('/:id/status', authenticateToken, requireAdmin, async (req, res) => {
       items: items
     });
   } catch (error) {
+    await connection.rollback();
     console.error('Error updating order status:', error);
     res.status(500).json({ error: 'Failed to update order status' });
+  } finally {
+    connection.release();
   }
 });
 

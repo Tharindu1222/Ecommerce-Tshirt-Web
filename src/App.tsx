@@ -13,6 +13,7 @@ import { Register } from './components/Register';
 import { UserProfile } from './components/UserProfile';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { Customize } from './components/Customize';
+import { OrderTracking } from './components/OrderTracking';
 
 function HomePage() {
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -78,6 +79,7 @@ function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/customize" element={<Customize />} />
+            <Route path="/track-order" element={<OrderTracking />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </CartProvider>

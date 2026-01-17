@@ -1,4 +1,4 @@
-import { ShoppingCart, Menu, X, User, LogOut, Settings } from 'lucide-react';
+import { ShoppingCart, Menu, X, User, LogOut, Settings, Package } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
@@ -34,6 +34,10 @@ export const Navbar = ({ onCartClick, onLoginClick, onProfileClick }: NavbarProp
             <a href="#" className="text-gray-300 hover:text-white transition-colors">Shop</a>
             <a href="#new" className="text-gray-300 hover:text-white transition-colors">New Arrivals</a>
             <Link to="/customize" className="text-gray-300 hover:text-white transition-colors">Customize</Link>
+            <Link to="/track-order" className="text-gray-300 hover:text-white transition-colors flex items-center gap-2">
+              <Package className="w-4 h-4" />
+              Track Order
+            </Link>
             <a href="#about" className="text-gray-300 hover:text-white transition-colors">About</a>
           </div>
 

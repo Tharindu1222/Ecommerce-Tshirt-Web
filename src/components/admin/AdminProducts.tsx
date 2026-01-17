@@ -292,7 +292,7 @@ export const AdminProducts = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-400">Inventory Value</p>
-              <p className="text-2xl font-bold text-green-400 mt-1">${stats.totalValue.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-green-400 mt-1">Rs. {stats.totalValue.toFixed(2)}</p>
               <p className="text-xs text-gray-500 mt-1">Total value</p>
             </div>
             <DollarSign className="w-8 h-8 text-green-400" />
@@ -419,7 +419,7 @@ export const AdminProducts = () => {
                         {product.category}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm font-medium text-white">${Number(product.price).toFixed(2)}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-white">Rs. {Number(product.price).toFixed(2)}</td>
                     <td className="px-6 py-4">
                       <div className="text-sm font-medium text-white">{product.stock}</div>
                       <div className="text-xs text-gray-400">units</div>
@@ -549,7 +549,7 @@ export const AdminProducts = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Price ($) *</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Price (Rs.) *</label>
                   <input
                     type="number"
                     step="0.01"
@@ -785,7 +785,7 @@ export const AdminProducts = () => {
                   </div>
                   <div>
                     <p className="text-sm text-gray-400">Price</p>
-                    <p className="text-white font-bold text-lg">${Number(viewingProduct.price).toFixed(2)}</p>
+                    <p className="text-white font-bold text-lg">Rs. {Number(viewingProduct.price).toFixed(2)}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-400">Stock Quantity</p>
@@ -799,7 +799,7 @@ export const AdminProducts = () => {
                   <div>
                     <p className="text-sm text-gray-400">Total Value</p>
                     <p className="text-green-400 font-bold text-lg">
-                      ${(Number(viewingProduct.price) * Number(viewingProduct.stock)).toFixed(2)}
+                      Rs. {(Number(viewingProduct.price) * Number(viewingProduct.stock)).toFixed(2)}
                     </p>
                   </div>
                 </div>

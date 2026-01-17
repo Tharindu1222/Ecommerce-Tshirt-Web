@@ -10,6 +10,7 @@ import adminProductRoutes from './routes/admin/products.js';
 import adminUserRoutes from './routes/admin/users.js';
 import adminOrderRoutes from './routes/admin/orders.js';
 import adminCustomerRoutes from './routes/admin/customers.js';
+import adminFlashDealsRoutes from './routes/admin/flash-deals.js';
 
 dotenv.config();
 
@@ -46,6 +47,7 @@ app.use('/api/admin/products', adminProductRoutes);
 app.use('/api/admin/users', adminUserRoutes);
 app.use('/api/admin/orders', adminOrderRoutes);
 app.use('/api/admin/customers', adminCustomerRoutes);
+app.use('/api/admin/flash-deals', adminFlashDealsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

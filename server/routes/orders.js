@@ -34,6 +34,31 @@ router.post('/', async (req, res) => {
       );
     }
 
+    // Validate stock availability and reduce stock
+    for (const item of cartItems) {
+      // Check current stock
+      const [products] = await connection.query(
+        'SELECT stock FROM products WHERE id = ?',
+        [item.product_id]
+      );
+
+      if (products.length === 0) {
+        throw new Error(`Product ${item.product_id} not found`);
+      }
+
+      const currentStock = products[0].stock;
+      
+      if (currentStock < item.quantity) {
+        throw new Error(`Insufficient stock for product. Available: ${currentStock}, Requested: ${item.quantity}`);
+      }
+
+      // Reduce stock
+      await connection.query(
+        'UPDATE products SET stock = stock - ? WHERE id = ?',
+        [item.quantity, item.product_id]
+      );
+    }
+
     // Insert order items
     if (cartItems.length > 0) {
       const orderItems = cartItems.map(item => [
@@ -90,14 +115,29 @@ router.get('/', async (req, res) => {
       [email]
     );
 
-    const orders = rows.map(row => ({
-      ...row,
-      shipping_address: typeof row.shipping_address === 'string' 
-        ? JSON.parse(row.shipping_address)
-        : row.shipping_address
-    }));
+    // Fetch order items for each order
+    const ordersWithItems = await Promise.all(
+      rows.map(async (order) => {
+        const [items] = await promisePool.query(
+          `SELECT oi.*, p.name as product_name, p.image_url as product_image
+           FROM order_items oi
+           LEFT JOIN products p ON oi.product_id = p.id
+           WHERE oi.order_id = ?
+           ORDER BY oi.created_at`,
+          [order.id]
+        );
 
-    res.json(orders);
+        return {
+          ...order,
+          shipping_address: typeof order.shipping_address === 'string' 
+            ? JSON.parse(order.shipping_address)
+            : order.shipping_address,
+          items: items
+        };
+      })
+    );
+
+    res.json(ordersWithItems);
   } catch (error) {
     console.error('Error fetching orders:', error);
     res.status(500).json({ error: 'Failed to fetch orders' });

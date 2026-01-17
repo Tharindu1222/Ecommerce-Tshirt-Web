@@ -61,7 +61,7 @@ const ProductModal = ({ title, products, isOpen, onClose, onNavigateToProducts }
                             <p className="text-sm text-gray-500">Category: <span className="font-medium capitalize text-gray-300">{product.category}</span></p>
                             <p className="text-sm text-gray-500">Stock: <span className={`font-medium ${Number(product.stock) < 10 ? 'text-yellow-400' : 'text-white'}`}>{product.stock}</span></p>
                           </div>
-                          <p className="text-lg font-bold text-white">${Number(product.price).toFixed(2)}</p>
+                          <p className="text-lg font-bold text-white">Rs. {Number(product.price).toFixed(2)}</p>
                         </div>
                         {product.featured && (
                           <span className="inline-block mt-2 px-2 py-1 text-xs font-semibold rounded-full bg-gray-700 text-gray-300 border border-gray-600">
@@ -205,7 +205,7 @@ export const AdminStats = ({ onNavigateToProducts }: { onNavigateToProducts?: (f
             )}
           </div>
           <p className="text-sm text-gray-400 mb-1">Total Revenue</p>
-          <p className="text-3xl font-bold text-white">${(orderStats?.totalRevenue || 0).toFixed(2)}</p>
+          <p className="text-3xl font-bold text-white">Rs. {(orderStats?.totalRevenue || 0).toFixed(2)}</p>
           <p className="text-xs text-gray-500 mt-2">
             {orderStats?.totalOrders || 0} orders completed
           </p>
@@ -227,7 +227,7 @@ export const AdminStats = ({ onNavigateToProducts }: { onNavigateToProducts?: (f
           <p className="text-sm text-gray-400 mb-1">Total Orders</p>
           <p className="text-3xl font-bold text-white">{orderStats?.totalOrders || 0}</p>
           <p className="text-xs text-gray-500 mt-2">
-            ${(orderStats?.averageOrderValue || 0).toFixed(2)} avg. order value
+            Rs. {(orderStats?.averageOrderValue || 0).toFixed(2)} avg. order value
           </p>
         </div>
 
@@ -512,7 +512,7 @@ export const AdminStats = ({ onNavigateToProducts }: { onNavigateToProducts?: (f
                 <div>
                   <p className="text-xs text-gray-400">Inventory Value</p>
                   <p className="text-2xl font-bold text-green-400 mt-1">
-                    ${((productStats?.totalStock || 0) * 25).toFixed(0)}
+                    Rs. {((productStats?.totalStock || 0) * 25).toFixed(0)}
                   </p>
                 </div>
                 <DollarSign className="w-8 h-8 text-green-400/50" />

@@ -398,7 +398,7 @@ export const AdminUsers = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-400">Total Revenue</p>
-              <p className="text-2xl font-bold text-white mt-1">${(stats.totalRevenue || 0).toFixed(2)}</p>
+              <p className="text-2xl font-bold text-white mt-1">Rs. {(stats.totalRevenue || 0).toFixed(2)}</p>
             </div>
             <DollarSign className="w-8 h-8 text-yellow-400" />
           </div>
@@ -407,7 +407,7 @@ export const AdminUsers = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-400">Avg Order</p>
-              <p className="text-2xl font-bold text-white mt-1">${(stats.avgOrderValue || 0).toFixed(2)}</p>
+              <p className="text-2xl font-bold text-white mt-1">Rs. {(stats.avgOrderValue || 0).toFixed(2)}</p>
             </div>
             <DollarSign className="w-8 h-8 text-cyan-400" />
           </div>
@@ -560,7 +560,7 @@ export const AdminUsers = () => {
                     {user.total_orders || 0}
                   </td>
                   <td className="px-6 py-4 text-sm text-white font-medium">
-                    ${Number(user.total_spent || 0).toFixed(2)}
+                    Rs. {Number(user.total_spent || 0).toFixed(2)}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-400">
                     {user.last_order_date 
@@ -773,12 +773,12 @@ export const AdminUsers = () => {
                 </div>
                 <div>
                   <p className="text-sm text-gray-400">Total Spent</p>
-                  <p className="text-2xl font-bold text-white">${Number(viewingCustomer.total_spent || 0).toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-white">Rs. {Number(viewingCustomer.total_spent || 0).toFixed(2)}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-400">Avg Order</p>
                   <p className="text-2xl font-bold text-white">
-                    ${viewingCustomer.total_orders 
+                    Rs. {viewingCustomer.total_orders 
                       ? (Number(viewingCustomer.total_spent || 0) / viewingCustomer.total_orders).toFixed(2)
                       : '0.00'}
                   </p>
@@ -799,7 +799,7 @@ export const AdminUsers = () => {
                           <p className="text-xs text-gray-400">{new Date(order.created_at).toLocaleDateString()}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-lg font-bold text-white">${Number(order.total_amount || 0).toFixed(2)}</p>
+                          <p className="text-lg font-bold text-white">Rs. {Number(order.total_amount || 0).toFixed(2)}</p>
                           <p className="text-xs text-gray-400">{order.items_count} items</p>
                         </div>
                       </div>

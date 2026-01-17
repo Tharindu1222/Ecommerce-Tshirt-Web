@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { adminApi } from '../../lib/api';
-import { ShoppingBag, Search, Filter, CheckCircle, Clock, Truck, XCircle, Package, CreditCard, DollarSign } from 'lucide-react';
+import { ShoppingBag, Search, Filter, CheckCircle, Clock, Truck, XCircle, Package, CreditCard, DollarSign, Download } from 'lucide-react';
+import { downloadInvoice } from '../../utils/invoiceGenerator';
 
 interface OrderItem {
   id: string;
@@ -123,7 +124,7 @@ export const AdminOrders = () => {
 
   const formatCurrency = (amount: number | string) => {
     const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
-    return `$${numAmount.toFixed(2)}`;
+    return `Rs. ${numAmount.toFixed(2)}`;
   };
 
   if (loading) {
@@ -353,12 +354,47 @@ export const AdminOrders = () => {
                     Order ID: <span className="font-mono text-gray-300">#{selectedOrder.id.slice(0, 8).toUpperCase()}</span>
                   </p>
                 </div>
-                <button
-                  onClick={() => setSelectedOrder(null)}
-                  className="p-2 hover:bg-gray-800 rounded-lg transition-colors text-gray-400 hover:text-white"
-                >
-                  <XCircle className="w-6 h-6" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const shippingAddress = typeof selectedOrder.shipping_address === 'string' 
+                        ? JSON.parse(selectedOrder.shipping_address) 
+                        : selectedOrder.shipping_address;
+                      
+                      downloadInvoice({
+                        orderId: selectedOrder.id,
+                        orderDate: selectedOrder.created_at,
+                        customerName: selectedOrder.first_name && selectedOrder.last_name
+                          ? `${selectedOrder.first_name} ${selectedOrder.last_name}`
+                          : `${shippingAddress.firstName} ${shippingAddress.lastName}`,
+                        customerEmail: selectedOrder.email,
+                        customerPhone: shippingAddress.phone,
+                        shippingAddress: shippingAddress,
+                        items: selectedOrder.items.map((item: any) => ({
+                          name: item.product_name,
+                          quantity: item.quantity,
+                          size: item.size,
+                          color: item.color,
+                          price: Number(item.price),
+                        })),
+                        subtotal: Number(selectedOrder.total_amount),
+                        tax: 0,
+                        total: Number(selectedOrder.total_amount),
+                        status: selectedOrder.status,
+                      });
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download Invoice
+                  </button>
+                  <button
+                    onClick={() => setSelectedOrder(null)}
+                    className="p-2 hover:bg-gray-800 rounded-lg transition-colors text-gray-400 hover:text-white"
+                  >
+                    <XCircle className="w-6 h-6" />
+                  </button>
+                </div>
               </div>
 
               <div className="p-6 space-y-6">

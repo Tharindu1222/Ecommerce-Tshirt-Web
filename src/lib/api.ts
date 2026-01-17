@@ -215,6 +215,14 @@ export const adminApi = {
   getProductStats: async (): Promise<any> => {
     return apiRequest('/admin/products/stats/overview');
   },
+
+  getLowStockProducts: async (threshold: number = 10): Promise<any[]> => {
+    return apiRequest(`/admin/products/low-stock?threshold=${threshold}`);
+  },
+
+  getOutOfStockProducts: async (): Promise<any[]> => {
+    return apiRequest('/admin/products/out-of-stock');
+  },
   
   // Users
   getUsers: async (): Promise<any[]> => {
@@ -296,6 +304,39 @@ export const adminApi = {
   
   getOrderStats: async (): Promise<any> => {
     return apiRequest('/admin/orders/stats/overview');
+  },
+
+  // Flash Deals
+  getFlashDeals: async (): Promise<any[]> => {
+    return apiRequest('/admin/flash-deals');
+  },
+
+  getActiveFlashDeals: async (): Promise<any[]> => {
+    return apiRequest('/admin/flash-deals/active');
+  },
+
+  getFlashDealByProduct: async (productId: string): Promise<any> => {
+    return apiRequest(`/admin/flash-deals/product/${productId}`);
+  },
+
+  createFlashDeal: async (data: any): Promise<any> => {
+    return apiRequest('/admin/flash-deals', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateFlashDeal: async (id: string, data: any): Promise<any> => {
+    return apiRequest(`/admin/flash-deals/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteFlashDeal: async (id: string): Promise<void> => {
+    await apiRequest(`/admin/flash-deals/${id}`, {
+      method: 'DELETE',
+    });
   },
 };
 

@@ -5,9 +5,10 @@ import { AdminProducts } from './AdminProducts';
 import { AdminUsers } from './AdminUsers';
 import { AdminStats } from './AdminStats';
 import { AdminOrders } from './AdminOrders';
-import { Package, Users, BarChart3, LogOut, ShoppingBag } from 'lucide-react';
+import { AdminFlashDeals } from './AdminFlashDeals';
+import { Package, Users, BarChart3, LogOut, ShoppingBag, Zap } from 'lucide-react';
 
-type Tab = 'stats' | 'products' | 'users' | 'orders';
+type Tab = 'stats' | 'products' | 'users' | 'orders' | 'flash-deals';
 
 export const AdminDashboard = () => {
   const { user, logout, isAdmin, loading } = useAuth();
@@ -117,6 +118,17 @@ export const AdminDashboard = () => {
               <ShoppingBag className="w-5 h-5" />
               Orders
             </button>
+            <button
+              onClick={() => setActiveTab('flash-deals')}
+              className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'flash-deals'
+                  ? 'border-orange-500 text-orange-400'
+                  : 'border-transparent text-gray-400 hover:text-orange-300 hover:border-orange-600'
+              }`}
+            >
+              <Zap className={`w-5 h-5 ${activeTab === 'flash-deals' ? 'fill-orange-400' : ''}`} />
+              Flash Deals
+            </button>
           </nav>
         </div>
 
@@ -134,6 +146,7 @@ export const AdminDashboard = () => {
           {activeTab === 'products' && <AdminProducts />}
           {activeTab === 'users' && <AdminUsers />}
           {activeTab === 'orders' && <AdminOrders />}
+          {activeTab === 'flash-deals' && <AdminFlashDeals />}
         </div>
       </div>
     </div>

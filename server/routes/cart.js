@@ -26,10 +26,24 @@ router.get('/', async (req, res) => {
                 'colors', p.colors,
                 'stock', p.stock,
                 'featured', p.featured,
-                'created_at', p.created_at
+                'created_at', p.created_at,
+                'flashDeal', IF(fd.id IS NOT NULL,
+                  JSON_OBJECT(
+                    'id', fd.id,
+                    'discount_percentage', fd.discount_percentage,
+                    'start_time', fd.start_time,
+                    'end_time', fd.end_time,
+                    'is_active', fd.is_active
+                  ),
+                  NULL
+                )
               ) as product
        FROM cart_items ci
        LEFT JOIN products p ON ci.product_id = p.id
+       LEFT JOIN flash_deals fd ON p.id = fd.product_id 
+         AND fd.is_active = TRUE 
+         AND fd.start_time <= NOW() 
+         AND fd.end_time > NOW()
        WHERE ci.session_id = ?
        ORDER BY ci.created_at DESC`,
       [sessionId]
@@ -95,10 +109,24 @@ router.post('/', async (req, res) => {
                   'colors', p.colors,
                   'stock', p.stock,
                   'featured', p.featured,
-                  'created_at', p.created_at
+                  'created_at', p.created_at,
+                  'flashDeal', IF(fd.id IS NOT NULL,
+                    JSON_OBJECT(
+                      'id', fd.id,
+                      'discount_percentage', fd.discount_percentage,
+                      'start_time', fd.start_time,
+                      'end_time', fd.end_time,
+                      'is_active', fd.is_active
+                    ),
+                    NULL
+                  )
                 ) as product
          FROM cart_items ci
          LEFT JOIN products p ON ci.product_id = p.id
+         LEFT JOIN flash_deals fd ON p.id = fd.product_id 
+           AND fd.is_active = TRUE 
+           AND fd.start_time <= NOW() 
+           AND fd.end_time > NOW()
          WHERE ci.id = ?`,
         [existing[0].id]
       );
@@ -137,10 +165,24 @@ router.post('/', async (req, res) => {
                 'colors', p.colors,
                 'stock', p.stock,
                 'featured', p.featured,
-                'created_at', p.created_at
+                'created_at', p.created_at,
+                'flashDeal', IF(fd.id IS NOT NULL,
+                  JSON_OBJECT(
+                    'id', fd.id,
+                    'discount_percentage', fd.discount_percentage,
+                    'start_time', fd.start_time,
+                    'end_time', fd.end_time,
+                    'is_active', fd.is_active
+                  ),
+                  NULL
+                )
               ) as product
        FROM cart_items ci
        LEFT JOIN products p ON ci.product_id = p.id
+       LEFT JOIN flash_deals fd ON p.id = fd.product_id 
+         AND fd.is_active = TRUE 
+         AND fd.start_time <= NOW() 
+         AND fd.end_time > NOW()
        WHERE ci.id = ?`,
       [cartItemId]
     );
@@ -200,10 +242,24 @@ router.put('/:id', async (req, res) => {
                 'colors', p.colors,
                 'stock', p.stock,
                 'featured', p.featured,
-                'created_at', p.created_at
+                'created_at', p.created_at,
+                'flashDeal', IF(fd.id IS NOT NULL,
+                  JSON_OBJECT(
+                    'id', fd.id,
+                    'discount_percentage', fd.discount_percentage,
+                    'start_time', fd.start_time,
+                    'end_time', fd.end_time,
+                    'is_active', fd.is_active
+                  ),
+                  NULL
+                )
               ) as product
        FROM cart_items ci
        LEFT JOIN products p ON ci.product_id = p.id
+       LEFT JOIN flash_deals fd ON p.id = fd.product_id 
+         AND fd.is_active = TRUE 
+         AND fd.start_time <= NOW() 
+         AND fd.end_time > NOW()
        WHERE ci.id = ?`,
       [req.params.id]
     );

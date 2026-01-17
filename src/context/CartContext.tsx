@@ -9,6 +9,7 @@ interface CartContextType {
   removeFromCart: (itemId: string) => Promise<void>;
   updateQuantity: (itemId: string, quantity: number) => Promise<void>;
   clearCart: () => Promise<void>;
+  refreshCart: () => Promise<void>;
   loading: boolean;
 }
 
@@ -98,6 +99,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       removeFromCart,
       updateQuantity,
       clearCart,
+      refreshCart: loadCart,
       loading
     }}>
       {children}
