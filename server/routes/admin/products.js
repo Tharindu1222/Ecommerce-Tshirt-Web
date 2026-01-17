@@ -5,27 +5,7 @@ import { requireAdmin } from '../../middleware/admin.js';
 
 const router = express.Router();
 
-// Get all products (admin view with more details)
-router.get('/', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const [products] = await promisePool.query(
-      'SELECT * FROM products ORDER BY created_at DESC'
-    );
-
-    const formattedProducts = products.map(product => ({
-      ...product,
-      sizes: typeof product.sizes === 'string' ? JSON.parse(product.sizes) : product.sizes,
-      colors: typeof product.colors === 'string' ? JSON.parse(product.colors) : product.colors
-    }));
-
-    res.json(formattedProducts);
-  } catch (error) {
-    console.error('Error fetching products:', error);
-    res.status(500).json({ error: 'Failed to fetch products' });
-  }
-});
-
-// Get product statistics
+// Get product statistics - MUST be before other routes
 router.get('/stats/overview', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const [totalProducts] = await promisePool.query('SELECT COUNT(*) as count FROM products');
@@ -53,6 +33,26 @@ router.get('/stats/overview', authenticateToken, requireAdmin, async (req, res) 
   } catch (error) {
     console.error('Error fetching product stats:', error);
     res.status(500).json({ error: 'Failed to fetch product statistics' });
+  }
+});
+
+// Get all products (admin view with more details)
+router.get('/', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const [products] = await promisePool.query(
+      'SELECT * FROM products ORDER BY created_at DESC'
+    );
+
+    const formattedProducts = products.map(product => ({
+      ...product,
+      sizes: typeof product.sizes === 'string' ? JSON.parse(product.sizes) : product.sizes,
+      colors: typeof product.colors === 'string' ? JSON.parse(product.colors) : product.colors
+    }));
+
+    res.json(formattedProducts);
+  } catch (error) {
+    console.error('Error fetching products:', error);
+    res.status(500).json({ error: 'Failed to fetch products' });
   }
 });
 

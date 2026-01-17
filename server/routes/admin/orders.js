@@ -5,6 +5,91 @@ import { requireAdmin } from '../../middleware/admin.js';
 
 const router = express.Router();
 
+// Get order statistics - MUST be before /:id route
+router.get('/stats/overview', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    // Get total revenue and order stats
+    const [revenue] = await promisePool.query(
+      `SELECT 
+         COALESCE(SUM(total_amount), 0) as total_revenue,
+         COUNT(*) as total_orders,
+         COALESCE(AVG(total_amount), 0) as avg_order_value
+       FROM orders 
+       WHERE status != 'cancelled'`
+    );
+
+    // Get order counts by status
+    const [statusCounts] = await promisePool.query(
+      `SELECT status, COUNT(*) as count 
+       FROM orders 
+       GROUP BY status`
+    );
+
+    // Get recent orders (last 30 days)
+    const [recentOrders] = await promisePool.query(
+      `SELECT COUNT(*) as count 
+       FROM orders 
+       WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)`
+    );
+
+    // Get previous month orders for growth calculation
+    const [previousMonthOrders] = await promisePool.query(
+      `SELECT COUNT(*) as count 
+       FROM orders 
+       WHERE created_at < DATE_SUB(NOW(), INTERVAL 30 DAY) 
+       AND created_at >= DATE_SUB(NOW(), INTERVAL 60 DAY)`
+    );
+
+    // Calculate growth
+    const currentCount = recentOrders[0].count;
+    const previousCount = previousMonthOrders[0].count || 1;
+    const ordersGrowth = previousCount > 0 ? Math.round(((currentCount - previousCount) / previousCount) * 100) : 0;
+
+    // Get previous month revenue for growth calculation
+    const [previousMonthRevenue] = await promisePool.query(
+      `SELECT COALESCE(SUM(total_amount), 0) as revenue 
+       FROM orders 
+       WHERE status != 'cancelled'
+       AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY) 
+       AND created_at >= DATE_SUB(NOW(), INTERVAL 60 DAY)`
+    );
+
+    const [currentMonthRevenue] = await promisePool.query(
+      `SELECT COALESCE(SUM(total_amount), 0) as revenue 
+       FROM orders 
+       WHERE status != 'cancelled'
+       AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)`
+    );
+
+    const currentRev = parseFloat(currentMonthRevenue[0].revenue);
+    const previousRev = parseFloat(previousMonthRevenue[0].revenue) || 1;
+    const revenueGrowth = previousRev > 0 ? Math.round(((currentRev - previousRev) / previousRev) * 100) : 0;
+
+    // Format status counts
+    const statusObj = statusCounts.reduce((acc, item) => {
+      acc[item.status] = item.count;
+      return acc;
+    }, {});
+
+    res.json({
+      totalRevenue: parseFloat(revenue[0].total_revenue),
+      totalOrders: revenue[0].total_orders,
+      averageOrderValue: parseFloat(revenue[0].avg_order_value),
+      revenueGrowth: revenueGrowth,
+      ordersGrowth: ordersGrowth,
+      pendingOrders: statusObj['pending'] || 0,
+      processingOrders: statusObj['processing'] || 0,
+      shippedOrders: statusObj['shipped'] || 0,
+      deliveredOrders: statusObj['delivered'] || 0,
+      cancelledOrders: statusObj['cancelled'] || 0,
+      recentOrders: recentOrders[0].count
+    });
+  } catch (error) {
+    console.error('Error fetching order stats:', error);
+    res.status(500).json({ error: 'Failed to fetch order statistics' });
+  }
+});
+
 // Get all orders (admin only)
 router.get('/', authenticateToken, requireAdmin, async (req, res) => {
   try {
@@ -152,49 +237,6 @@ router.put('/:id/status', authenticateToken, requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Error updating order status:', error);
     res.status(500).json({ error: 'Failed to update order status' });
-  }
-});
-
-// Get order statistics
-router.get('/stats/overview', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const [totalOrders] = await promisePool.query(
-      'SELECT COUNT(*) as count FROM orders'
-    );
-
-    const [statusCounts] = await promisePool.query(
-      `SELECT status, COUNT(*) as count 
-       FROM orders 
-       GROUP BY status`
-    );
-
-    const [revenue] = await promisePool.query(
-      `SELECT 
-         SUM(total_amount) as total_revenue,
-         COUNT(*) as total_orders,
-         AVG(total_amount) as avg_order_value
-       FROM orders 
-       WHERE status != 'cancelled'`
-    );
-
-    const [recentOrders] = await promisePool.query(
-      `SELECT COUNT(*) as count 
-       FROM orders 
-       WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)`
-    );
-
-    res.json({
-      totalOrders: totalOrders[0].count,
-      statusCounts: statusCounts.reduce((acc, item) => {
-        acc[item.status] = item.count;
-        return acc;
-      }, {}),
-      revenue: revenue[0] || { total_revenue: 0, total_orders: 0, avg_order_value: 0 },
-      recentOrders: recentOrders[0].count
-    });
-  } catch (error) {
-    console.error('Error fetching order stats:', error);
-    res.status(500).json({ error: 'Failed to fetch order statistics' });
   }
 });
 

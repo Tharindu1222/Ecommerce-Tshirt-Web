@@ -248,6 +248,34 @@ export const adminApi = {
   getUserStats: async (): Promise<any> => {
     return apiRequest('/admin/users/stats/overview');
   },
+
+  getCustomerStats: async (): Promise<any> => {
+    return apiRequest('/admin/users/stats/overview');
+  },
+
+  getCustomerDetails: async (id: string): Promise<any> => {
+    return apiRequest(`/admin/users/${id}/details`);
+  },
+
+  // All Customers (registered + guest)
+  getAllCustomers: async (): Promise<any[]> => {
+    return apiRequest('/admin/customers');
+  },
+
+  getCustomerByEmail: async (email: string): Promise<any> => {
+    return apiRequest(`/admin/customers/by-email/${encodeURIComponent(email)}`);
+  },
+
+  getGuestCustomers: async (): Promise<any[]> => {
+    return apiRequest('/admin/customers/guests');
+  },
+
+  inviteGuestCustomer: async (email: string): Promise<any> => {
+    return apiRequest('/admin/customers/invite-guest', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  },
   
   // Orders
   getOrders: async (queryString?: string): Promise<any[]> => {
