@@ -11,14 +11,28 @@ router.post('/', async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    const { email, total_amount, shipping_address, cartItems } = req.body;
+    const { email, total_amount, shipping_address, cartItems, payment_method = 'cod' } = req.body;
+
+    // Determine payment status based on payment method
+    const paymentStatus = payment_method === 'cod' ? 'pending' : 'awaiting_payment';
+    const orderStatus = payment_method === 'cod' ? 'pending' : 'payment_pending';
 
     // Insert order
     const orderId = randomUUID();
-    await connection.query(
-      'INSERT INTO orders (id, email, total_amount, status, shipping_address) VALUES (?, ?, ?, ?, ?)',
-      [orderId, email, total_amount, 'pending', JSON.stringify(shipping_address)]
-    );
+    
+    // Check if payment columns exist, if not use basic insert
+    try {
+      await connection.query(
+        'INSERT INTO orders (id, email, total_amount, status, payment_method, payment_status, shipping_address) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [orderId, email, total_amount, orderStatus, payment_method, paymentStatus, JSON.stringify(shipping_address)]
+      );
+    } catch (err) {
+      // Fallback if columns don't exist yet
+      await connection.query(
+        'INSERT INTO orders (id, email, total_amount, status, shipping_address) VALUES (?, ?, ?, ?, ?)',
+        [orderId, email, total_amount, 'pending', JSON.stringify(shipping_address)]
+      );
+    }
 
     // Insert order items
     if (cartItems.length > 0) {
@@ -46,9 +60,12 @@ router.post('/', async (req, res) => {
       [orderId]
     );
 
+    const createdOrder = order[0];
     res.status(201).json({
-      ...order[0],
-      shipping_address: JSON.parse(order[0].shipping_address)
+      ...createdOrder,
+      shipping_address: typeof createdOrder.shipping_address === 'string' 
+        ? JSON.parse(createdOrder.shipping_address)
+        : createdOrder.shipping_address
     });
   } catch (error) {
     await connection.rollback();
@@ -75,7 +92,9 @@ router.get('/', async (req, res) => {
 
     const orders = rows.map(row => ({
       ...row,
-      shipping_address: JSON.parse(row.shipping_address)
+      shipping_address: typeof row.shipping_address === 'string' 
+        ? JSON.parse(row.shipping_address)
+        : row.shipping_address
     }));
 
     res.json(orders);

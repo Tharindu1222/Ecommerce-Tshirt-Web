@@ -168,6 +168,40 @@ router.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
 // Delete product
 router.delete('/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
+    const forceDelete = req.query.force === 'true';
+
+    // Check if product exists in any orders
+    const [orderItems] = await promisePool.query(
+      'SELECT COUNT(*) as count FROM order_items WHERE product_id = ?',
+      [req.params.id]
+    );
+
+    if (orderItems[0].count > 0 && !forceDelete) {
+      return res.status(400).json({ 
+        error: 'Cannot delete product that has been ordered. It appears in existing orders.',
+        canForceDelete: true
+      });
+    }
+
+    // If force delete and product is in orders, we need to handle order_items
+    if (forceDelete && orderItems[0].count > 0) {
+      // Option 1: Set product_id to NULL in order_items (requires schema change)
+      // Option 2: Delete the order_items (loses order history - not recommended)
+      // Option 3: Keep product info but mark as deleted
+      // For now, we'll delete order_items to allow the delete
+      await promisePool.query(
+        'DELETE FROM order_items WHERE product_id = ?',
+        [req.params.id]
+      );
+    }
+
+    // Delete from cart_items first
+    await promisePool.query(
+      'DELETE FROM cart_items WHERE product_id = ?',
+      [req.params.id]
+    );
+
+    // Now delete the product
     const [result] = await promisePool.query(
       'DELETE FROM products WHERE id = ?',
       [req.params.id]
@@ -177,7 +211,10 @@ router.delete('/:id', authenticateToken, requireAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Product not found' });
     }
 
-    res.json({ message: 'Product deleted successfully' });
+    res.json({ 
+      message: 'Product deleted successfully',
+      orderItemsDeleted: forceDelete && orderItems[0].count > 0
+    });
   } catch (error) {
     console.error('Error deleting product:', error);
     res.status(500).json({ error: 'Failed to delete product' });

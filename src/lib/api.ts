@@ -88,7 +88,7 @@ export const cartApi = {
 
 // Orders API
 export const ordersApi = {
-  create: async (email: string, totalAmount: number, shippingAddress: any, cartItems: any[]): Promise<any> => {
+  create: async (email: string, totalAmount: number, shippingAddress: any, cartItems: any[], paymentMethod: string = 'cod'): Promise<any> => {
     return apiRequest('/orders', {
       method: 'POST',
       body: JSON.stringify({
@@ -96,6 +96,7 @@ export const ordersApi = {
         total_amount: totalAmount,
         shipping_address: shippingAddress,
         cartItems,
+        payment_method: paymentMethod,
       }),
     });
   },
@@ -204,8 +205,9 @@ export const adminApi = {
     });
   },
   
-  deleteProduct: async (id: string): Promise<void> => {
-    await apiRequest(`/admin/products/${id}`, {
+  deleteProduct: async (id: string, force: boolean = false): Promise<void> => {
+    const endpoint = force ? `/admin/products/${id}?force=true` : `/admin/products/${id}`;
+    await apiRequest(endpoint, {
       method: 'DELETE',
     });
   },

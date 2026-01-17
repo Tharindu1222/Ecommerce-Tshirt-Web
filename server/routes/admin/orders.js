@@ -117,7 +117,7 @@ router.put('/:id/status', authenticateToken, requireAdmin, async (req, res) => {
     }
 
     await promisePool.query(
-      'UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ?',
+      'UPDATE orders SET status = ? WHERE id = ?',
       [status, id]
     );
 

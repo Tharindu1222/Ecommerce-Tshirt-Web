@@ -666,10 +666,10 @@ export const Customize = () => {
                         </button>
                         <button
                           onMouseDown={(e) => handleRotateStart(e, 'front', design.id)}
-                          className="absolute -bottom-2 -left-2 w-6 h-6 bg-black/70 rounded-full flex items-center justify-center z-20 pointer-events-auto border border-pink-500 hover:bg-pink-500/20 transition-colors cursor-grab active:cursor-grabbing"
+                          className="absolute bottom-1 left-1 w-7 h-7 bg-black/80 rounded-full flex items-center justify-center z-20 pointer-events-auto border border-pink-500 shadow-lg hover:bg-pink-500/20 transition-colors cursor-grab active:cursor-grabbing"
                           title="Drag to rotate"
                         >
-                          <RotateCcw className="w-3 h-3" />
+                          <RotateCcw className="w-3.5 h-3.5 text-pink-400" />
                         </button>
                         {/* Resize handle */}
                         <div
@@ -731,10 +731,10 @@ export const Customize = () => {
                         </button>
                         <button
                           onMouseDown={(e) => handleRotateStart(e, 'back', design.id)}
-                          className="absolute -bottom-2 -left-2 w-6 h-6 bg-black/70 rounded-full flex items-center justify-center z-20 pointer-events-auto border border-pink-500 hover:bg-pink-500/20 transition-colors cursor-grab active:cursor-grabbing"
+                          className="absolute bottom-1 left-1 w-7 h-7 bg-black/80 rounded-full flex items-center justify-center z-20 pointer-events-auto border border-pink-500 shadow-lg hover:bg-pink-500/20 transition-colors cursor-grab active:cursor-grabbing"
                           title="Drag to rotate"
                         >
-                          <RotateCcw className="w-3 h-3" />
+                          <RotateCcw className="w-3.5 h-3.5 text-pink-400" />
                         </button>
                         {/* Resize handle */}
                         <div
@@ -794,10 +794,10 @@ export const Customize = () => {
                       </button>
                       <button
                         onMouseDown={(e) => handleRotateStart(e, 'leftSleeve', design.id)}
-                        className="absolute -bottom-2 -left-2 w-6 h-6 bg-black/70 rounded-full flex items-center justify-center z-20 pointer-events-auto border border-pink-500 hover:bg-pink-500/20 transition-colors cursor-grab active:cursor-grabbing"
+                        className="absolute bottom-1 left-1 w-7 h-7 bg-black/80 rounded-full flex items-center justify-center z-20 pointer-events-auto border border-pink-500 shadow-lg hover:bg-pink-500/20 transition-colors cursor-grab active:cursor-grabbing"
                         title="Drag to rotate"
                       >
-                        <RotateCcw className="w-3 h-3" />
+                        <RotateCcw className="w-3.5 h-3.5 text-pink-400" />
                       </button>
                       {/* Resize handle */}
                       <div
@@ -853,10 +853,10 @@ export const Customize = () => {
                       </button>
                       <button
                         onMouseDown={(e) => handleRotateStart(e, 'rightSleeve', design.id)}
-                        className="absolute -bottom-2 -left-2 w-6 h-6 bg-black/70 rounded-full flex items-center justify-center z-20 pointer-events-auto border border-pink-500 hover:bg-pink-500/20 transition-colors cursor-grab active:cursor-grabbing"
+                        className="absolute bottom-1 left-1 w-7 h-7 bg-black/80 rounded-full flex items-center justify-center z-20 pointer-events-auto border border-pink-500 shadow-lg hover:bg-pink-500/20 transition-colors cursor-grab active:cursor-grabbing"
                         title="Drag to rotate"
                       >
-                        <RotateCcw className="w-3 h-3" />
+                        <RotateCcw className="w-3.5 h-3.5 text-pink-400" />
                       </button>
                       {/* Resize handle */}
                       <div

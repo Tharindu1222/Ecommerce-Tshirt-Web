@@ -101,7 +101,26 @@ export const AdminProducts = () => {
       await adminApi.deleteProduct(id);
       await loadProducts();
     } catch (error: any) {
-      alert(error.message || 'Failed to delete product');
+      // Check if this is the "product has been ordered" error
+      if (error.message && error.message.includes('has been ordered')) {
+        const forceDelete = confirm(
+          'This product has been ordered by customers. Deleting it will remove it from their order history.\n\n' +
+          'Are you sure you want to force delete this product?\n\n' +
+          'Click OK to force delete, or Cancel to keep the product.'
+        );
+        
+        if (forceDelete) {
+          try {
+            await adminApi.deleteProduct(id, true);
+            await loadProducts();
+            alert('Product deleted successfully (including from order history)');
+          } catch (forceError: any) {
+            alert(forceError.message || 'Failed to force delete product');
+          }
+        }
+      } else {
+        alert(error.message || 'Failed to delete product');
+      }
     }
   };
 

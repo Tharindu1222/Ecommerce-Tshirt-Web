@@ -1,4 +1,4 @@
-import { X } from 'lucide-react';
+import { X, CreditCard, DollarSign, AlertCircle } from 'lucide-react';
 import { useState } from 'react';
 import { useCart } from '../context/CartContext';
 import { ordersApi } from '../lib/api';
@@ -8,18 +8,27 @@ interface CheckoutProps {
   onClose: () => void;
 }
 
+declare global {
+  interface Window {
+    payhere: any;
+  }
+}
+
 export const Checkout = ({ isOpen, onClose }: CheckoutProps) => {
   const { cartItems, clearCart } = useCart();
   const [isProcessing, setIsProcessing] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'payhere'>('cod');
   const [formData, setFormData] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
     email: '',
+    phone: '',
     address: '',
     city: '',
     state: '',
     zipCode: '',
-    country: 'USA'
+    country: 'Sri Lanka'
   });
 
   if (!isOpen) return null;
@@ -42,13 +51,68 @@ export const Checkout = ({ isOpen, onClose }: CheckoutProps) => {
         price: item.product?.price || 0
       }));
 
-      await ordersApi.create(formData.email, total, formData, orderItems);
-      await clearCart();
-      setOrderSuccess(true);
+      if (paymentMethod === 'cod') {
+        // Cash on Delivery - Create order directly
+        await ordersApi.create(formData.email, total, formData, orderItems, 'cod');
+        await clearCart();
+        setOrderSuccess(true);
+      } else {
+        // PayHere Payment
+        const order = await ordersApi.create(formData.email, total, formData, orderItems, 'payhere');
+        initiatePayHerePayment(order, total);
+      }
     } catch (error) {
       console.error('Checkout error:', error);
       alert('Failed to process order. Please try again.');
-    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const initiatePayHerePayment = (order: any, amount: number) => {
+    // PayHere Configuration
+    const payment = {
+      sandbox: true, // Set to false for production
+      merchant_id: '1227907', // Replace with your Merchant ID
+      return_url: window.location.origin + '/payment-success',
+      cancel_url: window.location.origin + '/payment-cancel',
+      notify_url: window.location.origin + '/api/payment/notify',
+      order_id: order.id,
+      items: cartItems.map(item => item.product?.name).join(', '),
+      amount: amount.toFixed(2),
+      currency: 'LKR',
+      first_name: formData.firstName,
+      last_name: formData.lastName,
+      email: formData.email,
+      phone: formData.phone,
+      address: formData.address,
+      city: formData.city,
+      country: formData.country,
+      hash: '', // This should be generated on backend for security
+    };
+
+    // Initialize PayHere
+    if (window.payhere) {
+      window.payhere.onCompleted = async function onCompleted(orderId: string) {
+        console.log('Payment completed. OrderID:' + orderId);
+        await clearCart();
+        setOrderSuccess(true);
+        setIsProcessing(false);
+      };
+
+      window.payhere.onDismissed = function onDismissed() {
+        console.log('Payment dismissed');
+        setIsProcessing(false);
+      };
+
+      window.payhere.onError = function onError(error: string) {
+        console.log('Error:' + error);
+        alert('Payment failed: ' + error);
+        setIsProcessing(false);
+      };
+
+      window.payhere.startPayment(payment);
+    } else {
+      alert('PayHere payment gateway is not loaded. Please refresh the page.');
       setIsProcessing(false);
     }
   };
@@ -116,72 +180,162 @@ export const Checkout = ({ isOpen, onClose }: CheckoutProps) => {
             </div>
           </div>
 
+          {/* Payment Method Selection */}
+          <div>
+            <h3 className="text-lg font-semibold text-white mb-4">Payment Method</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('cod')}
+                className={`p-4 rounded-lg border-2 transition-all ${
+                  paymentMethod === 'cod'
+                    ? 'border-green-500 bg-green-500/10'
+                    : 'border-gray-700 bg-gray-800 hover:border-gray-600'
+                }`}
+              >
+                <div className="flex flex-col items-center gap-2">
+                  <DollarSign className={`w-8 h-8 ${paymentMethod === 'cod' ? 'text-green-400' : 'text-gray-400'}`} />
+                  <span className={`font-semibold ${paymentMethod === 'cod' ? 'text-green-400' : 'text-white'}`}>
+                    Cash on Delivery
+                  </span>
+                  <span className="text-xs text-gray-400">Pay when you receive</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('payhere')}
+                className={`p-4 rounded-lg border-2 transition-all ${
+                  paymentMethod === 'payhere'
+                    ? 'border-blue-500 bg-blue-500/10'
+                    : 'border-gray-700 bg-gray-800 hover:border-gray-600'
+                }`}
+              >
+                <div className="flex flex-col items-center gap-2">
+                  <CreditCard className={`w-8 h-8 ${paymentMethod === 'payhere' ? 'text-blue-400' : 'text-gray-400'}`} />
+                  <span className={`font-semibold ${paymentMethod === 'payhere' ? 'text-blue-400' : 'text-white'}`}>
+                    PayHere
+                  </span>
+                  <span className="text-xs text-gray-400">Credit/Debit Card</span>
+                </div>
+              </button>
+            </div>
+            
+            {paymentMethod === 'cod' && (
+              <div className="mt-3 p-3 bg-green-500/10 border border-green-500/30 rounded-lg flex items-start gap-2">
+                <AlertCircle className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-green-400">
+                  You will pay in cash when your order is delivered to your address.
+                </p>
+              </div>
+            )}
+            
+            {paymentMethod === 'payhere' && (
+              <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg flex items-start gap-2">
+                <AlertCircle className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-blue-400">
+                  Secure payment powered by PayHere. All major credit and debit cards accepted.
+                </p>
+              </div>
+            )}
+          </div>
+
           <div>
             <h3 className="text-lg font-semibold text-white mb-4">Shipping Information</h3>
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-2 focus:ring-gray-600 focus:border-gray-600"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    First Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.firstName}
+                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Last Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.lastName}
+                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Email
+                  Email *
                 </label>
                 <input
                   type="email"
                   required
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-2 focus:ring-gray-600 focus:border-gray-600"
+                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Address
+                  Phone Number *
                 </label>
                 <input
-                  type="text"
+                  type="tel"
                   required
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="+94 77 123 4567"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Address *
+                </label>
+                <textarea
+                  required
+                  rows={2}
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-2 focus:ring-gray-600 focus:border-gray-600"
+                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Street address, apartment, suite, etc."
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">
-                    City
+                    City *
                   </label>
                   <input
                     type="text"
                     required
                     value={formData.city}
                     onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-2 focus:ring-gray-600 focus:border-gray-600"
+                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">
-                    State
+                    State/Province *
                   </label>
                   <input
                     type="text"
                     required
                     value={formData.state}
                     onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-2 focus:ring-gray-600 focus:border-gray-600"
+                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
               </div>
@@ -189,28 +343,33 @@ export const Checkout = ({ isOpen, onClose }: CheckoutProps) => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">
-                    ZIP Code
+                    ZIP/Postal Code *
                   </label>
                   <input
                     type="text"
                     required
                     value={formData.zipCode}
                     onChange={(e) => setFormData({ ...formData, zipCode: e.target.value })}
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-2 focus:ring-gray-600 focus:border-gray-600"
+                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Country
+                    Country *
                   </label>
-                  <input
-                    type="text"
+                  <select
                     required
                     value={formData.country}
                     onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-2 focus:ring-gray-600 focus:border-gray-600"
-                  />
+                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="Sri Lanka">Sri Lanka</option>
+                    <option value="India">India</option>
+                    <option value="USA">USA</option>
+                    <option value="UK">UK</option>
+                    <option value="Australia">Australia</option>
+                  </select>
                 </div>
               </div>
             </div>
@@ -219,9 +378,17 @@ export const Checkout = ({ isOpen, onClose }: CheckoutProps) => {
           <button
             type="submit"
             disabled={isProcessing}
-            className="w-full bg-gray-800 text-white py-4 rounded-lg font-semibold hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-gray-700"
+            className={`w-full py-4 rounded-lg font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+              paymentMethod === 'cod'
+                ? 'bg-green-600 hover:bg-green-700 text-white'
+                : 'bg-blue-600 hover:bg-blue-700 text-white'
+            }`}
           >
-            {isProcessing ? 'Processing...' : 'Place Order'}
+            {isProcessing
+              ? 'Processing...'
+              : paymentMethod === 'cod'
+              ? '💵 Place Order (COD)'
+              : '💳 Proceed to Payment'}
           </button>
         </form>
       </div>
